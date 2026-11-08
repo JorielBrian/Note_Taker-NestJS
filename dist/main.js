@@ -14,7 +14,7 @@ async function bootstrap() {
         webOrigin: env.webOrigin,
     });
     app.enableShutdownHooks();
-    await app.listen(env.port);
+    await app.listen(process.env.PORT ?? 4000);
     console.log(`API listening on :${env.port}`);
 }
 void bootstrap();
