@@ -1,12 +1,12 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { CookieOptions, Response } from 'express';
+import type { CookieOptions, Request, Response } from 'express';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { CurrentUserId } from './current-user.decorator';
 import { LoginDto, RegisterDto } from './dto/credentials.dto';
 import { AuthService, PublicUser } from './auth.service';
-import { AUTH_COOKIE } from './jwt-auth.guard';
+import { AUTH_COOKIE } from './auth.constants';
 import { Public } from './public.decorator';
 
 const AUTH_LIMIT = { default: { limit: 10, ttl: 60_000 } };
@@ -49,8 +49,16 @@ export class AuthController {
   @Public()
   @HttpCode(204)
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.auth.revokeSession(req.cookies?.[AUTH_COOKIE]);
     res.clearCookie(AUTH_COOKIE, this.cookieOptions());
+  }
+
+  @HttpCode(200)
+  @Post('keep-alive')
+  keepAlive() {
+    // The global JWT guard records activity before this handler runs.
+    return { ok: true };
   }
 
   @Get('me')

@@ -7,6 +7,19 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lastActivityAt: timestamp('last_activity_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('sessions_user_idx').on(t.userId)],
+);
+
 export const notebooks = pgTable(
   'notebooks',
   {
@@ -44,5 +57,6 @@ export const notes = pgTable(
 );
 
 export type User = typeof users.$inferSelect;
+export type Session = typeof sessions.$inferSelect;
 export type Notebook = typeof notebooks.$inferSelect;
 export type Note = typeof notes.$inferSelect;

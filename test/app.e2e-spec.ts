@@ -15,8 +15,8 @@ describe('Note Taker API', () => {
   let app: INestApplication;
   let http: ReturnType<INestApplication['getHttpServer']>;
   const suffix = Date.now();
-  const alice = { email: `alice+${suffix}@example.com`, password: 'correct horse battery' };
-  const bob = { email: `bob+${suffix}@example.com`, password: 'another long password' };
+  const alice = { username: `alice_${suffix}`, password: 'correct horse battery' };
+  const bob = { username: `bob_${suffix}`, password: 'another long password' };
 
   beforeAll(async () => {
     await runMigrations(TEST_DB);
@@ -30,7 +30,7 @@ describe('Note Taker API', () => {
     await app.close();
   });
 
-  async function signUp(creds: { email: string; password: string }): Promise<Agent> {
+  async function signUp(creds: { username: string; password: string }): Promise<Agent> {
     const agent = request.agent(http);
     await agent.post('/auth/register').send(creds).expect(201);
     return agent;
@@ -38,27 +38,27 @@ describe('Note Taker API', () => {
 
   describe('auth', () => {
     it('registers, sets an httpOnly cookie, and never returns the hash', async () => {
-      const res = await request(http).post('/auth/register').send({ email: `x+${suffix}@example.com`, password: 'longenough1' }).expect(201);
-      expect(res.body).toEqual({ id: expect.any(String), email: `x+${suffix}@example.com` });
+      const res = await request(http).post('/auth/register').send({ username: `x_${suffix}`, password: 'longenough1' }).expect(201);
+      expect(res.body).toEqual({ id: expect.any(String), username: `x_${suffix}` });
       const cookie = (res.headers['set-cookie'] as unknown as string[]).join(';');
       expect(cookie).toMatch(/access_token=/);
       expect(cookie).toMatch(/HttpOnly/i);
       expect(cookie).toMatch(/SameSite=Lax/i);
     });
 
-    it('rejects duplicate emails (case-insensitive) and weak input', async () => {
+    it('rejects duplicate usernames (case-insensitive) and weak input', async () => {
       await signUp(alice);
-      await request(http).post('/auth/register').send({ ...alice, email: alice.email.toUpperCase() }).expect(409);
-      await request(http).post('/auth/register').send({ email: 'nope', password: 'longenough1' }).expect(400);
-      await request(http).post('/auth/register').send({ email: `s+${suffix}@example.com`, password: 'short' }).expect(400);
+      await request(http).post('/auth/register').send({ ...alice, username: alice.username.toUpperCase() }).expect(409);
+      await request(http).post('/auth/register').send({ username: 'ab', password: 'longenough1' }).expect(400);
+      await request(http).post('/auth/register').send({ username: `s_${suffix}`, password: 'short' }).expect(400);
     });
 
     it('logs in with right credentials and rejects wrong ones the same way', async () => {
       const agent = request.agent(http);
       await agent.post('/auth/login').send(alice).expect(200);
-      await agent.get('/auth/me').expect(200).expect((r) => expect(r.body.email).toBe(alice.email));
+      await agent.get('/auth/me').expect(200).expect((r) => expect(r.body.username).toBe(alice.username));
       const wrongPass = await request(http).post('/auth/login').send({ ...alice, password: 'wrong-password' }).expect(401);
-      const noUser = await request(http).post('/auth/login').send({ email: `ghost+${suffix}@example.com`, password: 'wrong-password' }).expect(401);
+      const noUser = await request(http).post('/auth/login').send({ username: `ghost_${suffix}`, password: 'wrong-password' }).expect(401);
       expect(wrongPass.body.message).toBe(noUser.body.message);
     });
 
