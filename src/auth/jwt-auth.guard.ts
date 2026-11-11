@@ -6,10 +6,8 @@ import type { AuthedRequest } from '../common/types';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { AuthService } from './auth.service';
+import { AUTH_COOKIE, JWT_ISSUER } from './auth.constants';
 import { IS_PUBLIC } from './public.decorator';
-
-export const AUTH_COOKIE = 'access_token';
-export const JWT_ISSUER = 'note-taker';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
