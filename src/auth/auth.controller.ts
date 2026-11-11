@@ -54,6 +54,7 @@ export class AuthController {
     res.clearCookie(AUTH_COOKIE, this.cookieOptions());
   }
 
+  @HttpCode(200)
   @Post('keep-alive')
   keepAlive() {
     // The global JWT guard records activity before this handler runs.
