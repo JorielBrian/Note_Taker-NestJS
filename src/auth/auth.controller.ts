@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { CookieOptions, Response } from 'express';
+import type { CookieOptions, Request, Response } from 'express';
 import { ENV } from '../config/config.module';
 import type { Env } from '../config/env';
 import { CurrentUserId } from './current-user.decorator';
@@ -49,8 +49,15 @@ export class AuthController {
   @Public()
   @HttpCode(204)
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    await this.auth.revokeSession(req.cookies?.[AUTH_COOKIE]);
     res.clearCookie(AUTH_COOKIE, this.cookieOptions());
+  }
+
+  @Post('keep-alive')
+  keepAlive() {
+    // The global JWT guard records activity before this handler runs.
+    return { ok: true };
   }
 
   @Get('me')
