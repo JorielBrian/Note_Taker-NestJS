@@ -63,15 +63,26 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException();
     }
 
-    const active = await this.auth.isSessionActive(
+    const sessionState = await this.auth.validateSession(
       payload.sid,
       this.env.sessionIdleTimeoutMinutes,
     );
-    if (!active) {
+    if (sessionState === 'expired') {
       this.clearCookie(res);
       throw new UnauthorizedException({
         code: 'SESSION_EXPIRED',
         message: 'You were logged out due to inactivity.',
+      });
+    }
+
+    if (sessionState === 'refreshed') {
+      const refreshedToken = await this.auth.signSessionToken(payload.sub, payload.sid);
+      res.cookie(AUTH_COOKIE, refreshedToken, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: this.env.isProd,
+        path: '/',
+        maxAge: this.env.jwtExpiresInDays * 24 * 60 * 60 * 1000,
       });
     }
 
