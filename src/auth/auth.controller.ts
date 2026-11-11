@@ -6,7 +6,7 @@ import type { Env } from '../config/env';
 import { CurrentUserId } from './current-user.decorator';
 import { LoginDto, RegisterDto } from './dto/credentials.dto';
 import { AuthService, PublicUser } from './auth.service';
-import { AUTH_COOKIE } from './jwt-auth.guard';
+import { AUTH_COOKIE } from './auth.constants';
 import { Public } from './public.decorator';
 
 const AUTH_LIMIT = { default: { limit: 10, ttl: 60_000 } };
