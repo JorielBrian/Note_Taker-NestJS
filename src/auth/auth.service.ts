@@ -56,8 +56,12 @@ export class AuthService {
       .insert(sessions)
       .values({ userId })
       .returning({ id: sessions.id });
+    return this.signSessionToken(userId, session.id);
+  }
+
+  signSessionToken(userId: string, sessionId: string): Promise<string> {
     return this.jwt.signAsync(
-      { sid: session.id },
+      { sid: sessionId },
       { subject: userId, issuer: JWT_ISSUER, algorithm: 'HS256' },
     );
   }
@@ -67,7 +71,10 @@ export class AuthService {
    * A request exactly at the configured timeout is expired. last_activity_at is
    * only written when it is strictly more than five minutes old.
    */
-  async isSessionActive(sessionId: string, idleTimeoutMinutes: number): Promise<boolean> {
+  async validateSession(
+    sessionId: string,
+    idleTimeoutMinutes: number,
+  ): Promise<'expired' | 'active' | 'refreshed'> {
     const [session] = await this.db
       .select({
         expired: sql<boolean>`EXTRACT(EPOCH FROM (now() - ${sessions.lastActivityAt})) >= ${idleTimeoutMinutes * 60}`,
@@ -77,14 +84,14 @@ export class AuthService {
       .where(eq(sessions.id, sessionId))
       .limit(1);
 
-    if (!session) return false;
+    if (!session) return 'expired';
     if (session.expired) {
       await this.db.delete(sessions).where(eq(sessions.id, sessionId));
-      return false;
+      return 'expired';
     }
 
     if (session.refreshDue) {
-      await this.db
+      const refreshed = await this.db
         .update(sessions)
         .set({ lastActivityAt: sql`now()` })
         .where(
@@ -92,9 +99,11 @@ export class AuthService {
             eq(sessions.id, sessionId),
             sql`${sessions.lastActivityAt} < now() - interval '5 minutes'`,
           ),
-        );
+        )
+        .returning({ id: sessions.id });
+      return refreshed.length ? 'refreshed' : 'active';
     }
-    return true;
+    return 'active';
   }
 
   async revokeSession(token: unknown): Promise<void> {
