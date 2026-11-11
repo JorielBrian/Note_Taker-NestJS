@@ -67,9 +67,21 @@ describe('session idle timeout', () => {
     const { agent, sessionId } = await createSession();
     await db.execute(sql`UPDATE sessions SET last_activity_at = now() - interval '6 minutes' WHERE id = ${sessionId}`);
 
-    await agent.post('/auth/keep-alive').expect(200);
+    const keepAliveResponse = await agent.post('/auth/keep-alive').expect(200);
+    expect(keepAliveResponse.headers['set-cookie']).toBeDefined();
     const result = await db.execute(sql`SELECT last_activity_at > now() - interval '1 minute' AS recent FROM sessions WHERE id = ${sessionId}`);
     expect(result.rows[0]?.recent).toBe(true);
+  });
+
+
+  it('does not write last_activity_at again inside the five-minute refresh window', async () => {
+    const { agent, sessionId } = await createSession();
+    await db.execute(sql`UPDATE sessions SET last_activity_at = now() - interval '4 minutes' WHERE id = ${sessionId}`);
+    const before = await db.execute(sql`SELECT last_activity_at FROM sessions WHERE id = ${sessionId}`);
+
+    await agent.get('/auth/me').expect(200);
+    const after = await db.execute(sql`SELECT last_activity_at FROM sessions WHERE id = ${sessionId}`);
+    expect(after.rows[0]?.last_activity_at).toEqual(before.rows[0]?.last_activity_at);
   });
 
   it('logout revokes the server-side session', async () => {
