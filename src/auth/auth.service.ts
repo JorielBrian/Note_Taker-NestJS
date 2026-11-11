@@ -2,19 +2,19 @@ import { ConflictException, Inject, Injectable, UnauthorizedException } from '@n
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { DB, type Database } from '../db/db.module';
-import { users } from '../db/schema';
+import { sessions, users } from '../db/schema';
 import { JWT_ISSUER } from './jwt-auth.guard';
 
- export interface PublicUser {
-   id: string;
-   username: string;
- }  
+export interface PublicUser {
+  id: string;
+  username: string;
+}
 
 @Injectable()
 export class AuthService {
-  // Verified against when the email is unknown, so response time doesn't reveal which emails exist.
+  // Verified against when the username is unknown, so response time doesn't reveal which accounts exist.
   private readonly dummyHash = argon2.hash(randomBytes(16).toString('hex'));
 
   constructor(
@@ -51,7 +51,63 @@ export class AuthService {
     return user;
   }
 
-  signToken(userId: string): Promise<string> {
-    return this.jwt.signAsync({}, { subject: userId, issuer: JWT_ISSUER, algorithm: 'HS256' });
+  async signToken(userId: string): Promise<string> {
+    const [session] = await this.db
+      .insert(sessions)
+      .values({ userId })
+      .returning({ id: sessions.id });
+    return this.jwt.signAsync(
+      { sid: session.id },
+      { subject: userId, issuer: JWT_ISSUER, algorithm: 'HS256' },
+    );
+  }
+
+  /**
+   * Validate inactivity using PostgreSQL's clock, not the application server clock.
+   * A request exactly at the configured timeout is expired. last_activity_at is
+   * only written when it is strictly more than five minutes old.
+   */
+  async isSessionActive(sessionId: string, idleTimeoutMinutes: number): Promise<boolean> {
+    const [session] = await this.db
+      .select({
+        expired: sql<boolean>`EXTRACT(EPOCH FROM (now() - ${sessions.lastActivityAt})) >= ${idleTimeoutMinutes * 60}`,
+        refreshDue: sql<boolean>`now() - ${sessions.lastActivityAt} > interval '5 minutes'`,
+      })
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
+
+    if (!session) return false;
+    if (session.expired) {
+      await this.db.delete(sessions).where(eq(sessions.id, sessionId));
+      return false;
+    }
+
+    if (session.refreshDue) {
+      await this.db
+        .update(sessions)
+        .set({ lastActivityAt: sql`now()` })
+        .where(
+          and(
+            eq(sessions.id, sessionId),
+            sql`${sessions.lastActivityAt} < now() - interval '5 minutes'`,
+          ),
+        );
+    }
+    return true;
+  }
+
+  async revokeSession(token: unknown): Promise<void> {
+    if (typeof token !== 'string' || !token) return;
+    try {
+      const payload = await this.jwt.verifyAsync<{ sid?: string }>(token, {
+        algorithms: ['HS256'],
+        issuer: JWT_ISSUER,
+        ignoreExpiration: true,
+      });
+      if (payload.sid) await this.db.delete(sessions).where(eq(sessions.id, payload.sid));
+    } catch {
+      // Logout must still clear the browser cookie when the token is malformed or expired.
+    }
   }
 }
