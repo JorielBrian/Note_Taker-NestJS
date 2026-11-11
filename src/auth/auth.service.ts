@@ -5,7 +5,7 @@ import { randomBytes } from 'crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { DB, type Database } from '../db/db.module';
 import { sessions, users } from '../db/schema';
-import { JWT_ISSUER } from './jwt-auth.guard';
+import { JWT_ISSUER } from './auth.constants';
 
 export interface PublicUser {
   id: string;
