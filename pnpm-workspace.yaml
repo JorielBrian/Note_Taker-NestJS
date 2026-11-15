@@ -1,4 +1,4 @@
 allowBuilds:
-  '@parcel/watcher': false
-  argon2: false
-  esbuild: false
+  '@parcel/watcher': true
+  argon2: true
+  esbuild: true
