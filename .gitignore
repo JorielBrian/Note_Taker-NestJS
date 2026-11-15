@@ -1,1 +1,25 @@
+# Dependencies
 node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment variables and secrets
+!.env.example
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Coverage
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+config.bat
